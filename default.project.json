@@ -1,0 +1,34 @@
+{
+  "name": "puppy",
+  "tree": {
+    "$className": "DataModel",
+
+    "HttpService": {
+      "$className": "HttpService",
+      "$properties": {
+        "HttpEnabled": true
+      }
+    },
+
+    "Workspace": {
+      "$className": "Workspace"
+    },
+
+   "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+
+      "puppy": {
+        "$path": "src"
+      }
+    },
+
+    "StarterPlayer":{
+      "$className": "StarterPlayer",
+
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "example"
+      }
+    }
+  }
+}
