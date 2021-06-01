@@ -35,15 +35,19 @@ function Component:extend(componentType: string)
 
 	-- move these to utils
 	function componentClass.sibling(this, siblingComponentType)
+		debug.profilebegin("sibling")
 		local cachedSibling = this._parentEntity._componentByType[siblingComponentType]
 
 		if cachedSibling then
 			if cachedSibling == "__NONE__" then
+				debug.profileend()
 				return nil
 			else
+				debug.profileend()
 				return cachedSibling
 			end
 		else
+			debug.profilebegin("lookupSibling")
 			local searchResult
 
 			for _, sibling in pairs(this._parentEntity.components) do
@@ -59,6 +63,8 @@ function Component:extend(componentType: string)
 				this._parentEntity._componentByType[siblingComponentType] = "__NONE__"
 			end
 
+			debug.profileend()
+			debug.profileend()
 			return searchResult
 		end
 	end
@@ -68,6 +74,22 @@ function Component:extend(componentType: string)
 	end
 
 	return componentClass
+end
+
+function Component._componentsFromBlueprint(parentEntity, blueprint)
+	local components = {}
+
+	for componentClass, data in pairs(blueprint) do
+		assert(type(componentClass) == "table", "Blueprint key must be a component class! (got "..typeof(componentClass)..")")
+		assert(componentClass.componentType ~= nil, "Blueprint key must be a component class!"..tostring(componentClass))
+
+		local newComponent = componentClass.new(parentEntity, data)
+		newComponent:onCreate()
+
+		table.insert(components, newComponent)
+	end
+
+	return components
 end
 
 return Component

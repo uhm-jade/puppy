@@ -1,9 +1,9 @@
 local ComponentLookup = {}
 ComponentLookup.__index = ComponentLookup
 
-function ComponentLookup.new(components)
+function ComponentLookup.new(world)
 	local this = {}
-	this.components = components
+	this.world = world
 	this.lookup = {}
 
 	return setmetatable(this, ComponentLookup)
@@ -11,7 +11,7 @@ end
 
 function ComponentLookup:_getNewIteration(componentType)
 	local new = {}
-	for _, component in ipairs(self.components) do
+	for _, component in ipairs(self.world.components) do
 		if component.componentType == componentType then
 			table.insert(new, component)
 		end

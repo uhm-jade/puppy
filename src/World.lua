@@ -1,6 +1,7 @@
 local Entity = require(script.Parent.Entity)
 local ComponentLookup = require(script.Parent.ComponentLookup)
 local SystemStepper = require(script.Parent.SystemStepper)
+local WorldHelper = require(script.Parent.WorldHelper)
 
 local DEFERRED_CREATE = false
 
@@ -13,7 +14,11 @@ function World.new(systems)
 	this.components = {}
 	this.entities = {}
 
-	this.componentLookup = ComponentLookup.new(this.components)
+	this.hooks = {}
+
+	this.frameNum = 0
+
+	this.componentLookup = ComponentLookup.new(this)
 	this.createdEntitiesThisFrame = {}
 
 	for _, systemClass in ipairs(systems) do
@@ -29,35 +34,64 @@ function World:start()
 	SystemStepper.start(self)
 end
 
+function World:hookToWorldUpdate(fn)
+	table.insert(self.hooks, fn)
+end
+
 function World:getComponents(componentType)
 	return self.componentLookup:getIteration(componentType)
 end
 
+function World:getComponentById(id)
+	debug.profilebegin("getComponentById")
+	for _, component in ipairs(self.components) do
+		if component.id == id then
+			return component
+		end
+	end
+	debug.profileend()
+end
+
 function World:createEntity(resourceBlueprint)
-	local newEntity = Entity.new(resourceBlueprint)
+	debug.profilebegin("createEntity")
+	local newEntity = Entity.new(self, resourceBlueprint)
 
 	if DEFERRED_CREATE then
 		table.insert(self.createdEntitiesThisFrame, newEntity)
 	else
-		self:_insertEntityIntoWorld(newEntity)
+		WorldHelper.insertEntityIntoWorld(self, newEntity)
 	end
 
+	debug.profileend()
 	return newEntity
 end
 
-function World:_insertEntityIntoWorld(entity)
-	-- Populate World.components with new entity's components
-	for _, component in ipairs(entity.components) do
-		table.insert(self.components, component)
+function World:addComponent(entity, componentClass, componentData)
+	debug.profilebegin("addComponent")
+	componentData = componentData or {}
 
-		-- Invalidate lookup table
-		self.componentLookup:invalidate(component.componentType)
-	end
+	local newComponents = WorldHelper.addComponents(self, entity, {[componentClass] = componentData})
+	debug.profileend()
+	return newComponents[1]
+end
 
-	self.entities[entity.id] = entity
+function World:addComponents(entity, components)
+	return WorldHelper.addComponents(self, entity, components)
+end
+
+function World:removeComponent(entity, componentClass)
+	debug.profilebegin("removeCmponent")
+	WorldHelper.removeComponent(self, entity, componentClass)
+	debug.profileend()
+end
+
+function World:getComponent(entity, componentType)
+	return WorldHelper.getComponent(entity, componentType)
 end
 
 function World:isEntityDestroyed(entityId)
+	assert(type(entityId) == "string", "isEntityDestroyed expects string 'entityId'!")
+
 	local entity = self.entities[entityId]
 	if (not entity) or (entity._isDestroyed) then
 		return true
@@ -69,49 +103,25 @@ end
 function World:destroyEntity(entityId)
 	local entity = self.entities[entityId]
 
-	-- mark entity as destroyed
+	-- Mark entity as destroyed, deferring the operation to end of frame
 	if entity ~= nil then
 		entity._isDestroyed = true
 	end
 end
 
-
-function World:_destroyEntity(entity)
-	-- Remove components from components list one-by-one, checking if it belongs to the entity
-	for i = #self.components, 1, -1 do
-		local component = self.components[i]
-
-		if component._parentEntity == entity then
-			table.remove(self.components, i)
-
-			-- Invalidate lookup table
-			self.componentLookup:invalidate(component.componentType)
-		end
-	end
-
-	-- Properly destroy components of entity
-	for _, component in ipairs(entity.components) do
-		if component.destroy ~= nil then
-			component:destroy()
-		end
-	end
-	entity.components = nil
-
-	-- Finally, remove entity from entities dictionary
-	self.entities[entity.id] = nil
-end
-
 function World:_cleanupDestroyedEntities()
 	for _, entity in pairs(self.entities) do
 		if entity._isDestroyed then
-			self:_destroyEntity(entity)
+			debug.profilebegin("destroyEntity")
+			WorldHelper.destroyEntity(self, entity)
+			debug.profileend()
 		end
 	end
 end
 
 function World:_insertCreatedEntities()
 	for _, entity in pairs(self.createdEntitiesThisFrame) do
-		self:_insertEntityIntoWorld(entity)
+		WorldHelper.insertEntityIntoWorld(self, entity)
 	end
 	self.createdEntitiesThisFrame = {}
 end
